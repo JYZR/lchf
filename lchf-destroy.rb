@@ -2,23 +2,16 @@
 # ------------- lchf ------------- #
 
 # ruby lchf-destroy.rb
-# Terminates the previously deployed instances
+# Terminates the previously deployed instances2
 
 require 'aws-sdk'
 require 'yaml'
 require 'fileutils'
 
-ec2 = AWS.ec2
-
-basic_instance_info = YAML.load(File.open("lchf-instances.yaml"))
-
-ids = basic_instance_info.map { |item| item['id'] }
-
-soon_to_be_terminated_instances = ec2.instances.select { |instance| ids.include? instance.id }
-
-soon_to_be_terminated_instances.each do |instance| 
-	instance.terminate
-	puts instance.id + ' terminated'
+YAML.load(File.open("lchf-instances.yaml")).each do |instance_info|
+	ec2 = AWS::EC2.new(:region => instance_info['region'])
+	ec2.instances[instance_info['id']].terminate
+	puts instance_info['id'] + ' in ' + instance_info['region']  + ' terminated'
 end
 
 puts 'Cluster terminated'

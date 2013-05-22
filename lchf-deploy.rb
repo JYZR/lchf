@@ -8,25 +8,14 @@
 # export AWS_ACCESS_KEY_ID=
 # export AWS_SECRET_ACCESS_KEY=
 
+# Also upload public key to all regions through the AWS console
+
 require 'aws-sdk'
 require 'net/ssh'
 require 'net/scp'
 require 'yaml'
 
-# TODO: Change this and use lchf-configuration.yaml instead
-region = 'us-east-1'
 instance_type = 'm1.small'
-number_of_instances = 2
-
-ec2 = AWS.ec2
-#ec2 = AWS::EC2.new(:ec2_endpoint => ec2.regions[region].endpoint)
-
-# Security group: Cassandra (sg-592ed532)
-# Port (Service)      Source
-# 1024 - 65535        sg-592ed532 (Cassandra)
-# 22 (SSH)            0.0.0.0/0
-security_group = ec2.security_groups['sg-592ed532']
-
 
 # Amazon Linux AMI IDs Instance Store Backed (not EBS) 64-bit
 AMIs = {
@@ -40,15 +29,21 @@ AMIs = {
   'ap-southeast-2' => 'ami-316cfc0b',
 }
 
-aws_key_pair = ec2.key_pairs.detect { |key| key.name == 'aws-upc' }
+# Connect to all regions
+ec2s = AWS.ec2.regions.map(&:name).map { |region_name| AWS::EC2.new(:region => region_name) }
 
 puts "Creating instances"
-instances = ec2.instances.create(
-  :image_id => AMIs[region],
-  :instance_type => instance_type,
-  :count => number_of_instances,
-  :security_groups => security_group,
-  :key_pair => aws_key_pair)
+instances = ec2s.map do |ec2| 
+  ami = AMIs[ec2.availability_zones.first.region_name]
+  sg = ec2.security_groups.detect { |sg| sg.name == 'Cassandra-Public'}
+  instance = ec2.instances.create(
+    :image_id => ami,
+    :instance_type => instance_type,
+    :count => 1,
+    :security_groups => sg,
+    :key_pair => ec2.key_pairs['jimmy-rsa']
+  )
+end
 
 puts "Waiting for instances to finish start up phase"
 sleep 10 while instances.any? { |instance| instance.status == :pending }
@@ -56,7 +51,7 @@ puts "Instances are running"
 
 # Configure cassandra.yaml with the IP addresses
 conf = YAML.load(File.open("cassandra.yaml"))
-ip_addresses = instances.map { |instance| instance.private_ip_address }
+ip_addresses = instances.map { |instance| instance.public_ip_address }
 conf['seed_provider'][0]['parameters'][0]['seeds'] = ip_addresses.join(",") # + ",10.144.7.72,10.152.182.111"
 file = File.open("lchf-cassandra.yaml", "w")
 file << conf.to_yaml
@@ -72,17 +67,17 @@ basic_instance_info = instances.map do |instance|
     'public_ip_address'  => instance.ip_address,
     'dns_name'           => instance.dns_name,
     'image_id'           => instance.image_id,
-    'instance_type'      => instance.instance_type 
+    'instance_type'      => instance.instance_type,
+    'region'             => instance.availability_zone[0..-2]
   }
 end
 instances_file << basic_instance_info.to_yaml
 instances_file.close
 puts "lchf-instances.yaml created"
 
-private_key = File.open('/Users/jimmy/.ssh/aws-upc.pem').read
 instances.each do |instance|
   begin
-    Net::SSH.start(instance.ip_address, "ec2-user", :key_data => private_key) do |ssh|
+    Net::SSH.start(instance.ip_address, "ec2-user", :keys => ['/Users/jimmy/.ssh/id_rsa']) do |ssh|
       puts "Uploading lchf-cassandra.yaml and lchf-install.sh to " + instance.dns_name
       ssh.scp.upload! "lchf-cassandra.yaml", "lchf-cassandra.yaml"
       ssh.scp.upload! "lchf-install.sh", "lchf-install.sh"
@@ -107,7 +102,16 @@ instances.each do |instance|
   end
 end
 
-
-
-
 puts "Cluster is set up, now run 'sh lchf-start-cassandra.sh' to start Cassandra"
+
+################################################################################
+
+def create_security_group_in_each_region
+  ec2s = AWS.ec2.regions.map(&:name).map { |region_name| AWS::EC2.new(:region => region_name) }
+  ec2s.each do |ec2|
+    sg = ec2.security_groups.create('Cassandra-Public')
+    sg.authorize_ingress(:tcp, 22) # SSH
+    sg.authorize_ingress(:tcp, 1024..65535) # JMX and other Cassandra stuff
+    sg.authorize_ingress(:tcp, 8080) # API interface, actually unnecessary
+  end
+end
