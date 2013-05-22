@@ -52,6 +52,8 @@ puts "Waiting for instances to finish start up phase..."
 sleep 10 while instances.any? { |instance| instance.status == :pending }
 puts "Instances are running"
 
+################################################################################
+
 # Configure cassandra.yaml with all the IP addresses
 conf = YAML.load(File.open("cassandra.yaml"))
 ip_addresses = instances.map { |instance| instance.public_ip_address }
@@ -60,6 +62,8 @@ file = File.open("lchf-cassandra.yaml", "w")
 file << conf.to_yaml
 file.close
 puts "lchf-cassandra.yaml created"
+
+################################################################################
 
 # Save info about instances to disk
 instances_file = File.open("lchf-instances.yaml", "w")
@@ -78,6 +82,7 @@ instances_file << basic_instance_info.to_yaml
 instances_file.close
 puts "lchf-instances.yaml created"
 
+################################################################################
 
 puts 'Copying files to all servers...'
 instances.each do |instance|
@@ -106,6 +111,8 @@ instances.each do |instance|
 end
 puts "Files are copied"
 
+################################################################################
+
 puts "Executing lchf-install.sh on all servers..."
 Net::SSH::Multi.start do |session|
   instances.each { |instance| session.use 'ec2-user@' + instance.dns_name }
@@ -121,6 +128,8 @@ Net::SSH::Multi.start do |session|
 end
 puts "All servers have been installed with Cassandra and Flask"
 
+################################################################################
+
 puts "Starting Cassandra and Flask..."
 Net::SSH::Multi.start do |session|
   instances.each { |instance| session.use 'ec2-user@' + instance.dns_name }
@@ -129,8 +138,6 @@ Net::SSH::Multi.start do |session|
   session.loop
 end
 puts "Cassandra and Flask are running"
-
-puts "Cluster is set up, now run 'sh lchf-start-cassandra.sh' to start Cassandra"
 
 ################################################################################
 
