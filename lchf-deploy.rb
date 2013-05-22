@@ -78,7 +78,6 @@ instances_file << basic_instance_info.to_yaml
 instances_file.close
 puts "lchf-instances.yaml created"
 
-start_cassandra_file = File.open('lchf-start-cassandra.sh', 'w')
 
 puts 'Copying files to all servers...'
 instances.each do |instance|
@@ -98,13 +97,12 @@ instances.each do |instance|
       ssh.scp.upload! "lchf-install.sh", "lchf-install.sh"
       ssh.scp.upload! "../api/zocial.py", "zocial.py"
     end
-  rescue SystemCallError, Timeout::Error => e
+  rescue SystemCallError, Timeout::Error, Net::SSH::HostKeyMismatch
     # port 22 might not be available immediately after the instance finishes launching
     sleep 1
     retry
   end
   FileUtils.rm_f "lchf-cassandra-single.yaml"
-  start_cassandra_file << "ssh -x ec2-user@#{instance.dns_name} \"~/apache-cassandra-1.2.4/bin/cassandra >> lchf-cassandra-start-log\"\n"
 end
 puts "Files are copied"
 
@@ -132,7 +130,6 @@ Net::SSH::Multi.start do |session|
 end
 puts "Cassandra and Flask are running"
 
-start_cassandra_file.close
 puts "Cluster is set up, now run 'sh lchf-start-cassandra.sh' to start Cassandra"
 
 ################################################################################
