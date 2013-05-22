@@ -13,7 +13,9 @@
 require 'aws-sdk'
 require 'net/ssh'
 require 'net/scp'
+require 'net/ssh/multi'
 require 'yaml'
+require 'fileutils'
 
 instance_type = 'm1.small'
 
@@ -32,7 +34,7 @@ AMIs = {
 # Connect to all regions
 ec2s = AWS.ec2.regions.map(&:name).map { |region_name| AWS::EC2.new(:region => region_name) }
 
-puts "Creating instances"
+puts "Creating instances..."
 instances = ec2s.map do |ec2| 
   ami = AMIs[ec2.availability_zones.first.region_name]
   sg = ec2.security_groups.detect { |sg| sg.name == 'Cassandra-Public'}
@@ -44,12 +46,13 @@ instances = ec2s.map do |ec2|
     :key_pair => ec2.key_pairs['jimmy-rsa']
   )
 end
+puts "Instances created"
 
-puts "Waiting for instances to finish start up phase"
+puts "Waiting for instances to finish start up phase..."
 sleep 10 while instances.any? { |instance| instance.status == :pending }
 puts "Instances are running"
 
-# Configure cassandra.yaml with the IP addresses
+# Configure cassandra.yaml with all the IP addresses
 conf = YAML.load(File.open("cassandra.yaml"))
 ip_addresses = instances.map { |instance| instance.public_ip_address }
 conf['seed_provider'][0]['parameters'][0]['seeds'] = ip_addresses.join(",") # + ",10.144.7.72,10.152.182.111"
@@ -75,33 +78,61 @@ instances_file << basic_instance_info.to_yaml
 instances_file.close
 puts "lchf-instances.yaml created"
 
+start_cassandra_file = File.open('lchf-start-cassandra.sh', 'w')
+
+puts 'Copying files to all servers...'
 instances.each do |instance|
+  
+  # Create "personalized" configuration file
+  conf = YAML.load(File.open("lchf-cassandra.yaml"))
+  conf['listen_address'] = instance.private_ip_address
+  conf['broadcast_address'] = instance.public_ip_address
+  file = File.open("lchf-cassandra-single.yaml", "w")
+  file << conf.to_yaml
+  file.close
+  
   begin
-    Net::SSH.start(instance.ip_address, "ec2-user", :keys => ['/Users/jimmy/.ssh/id_rsa']) do |ssh|
+    Net::SSH.start(instance.ip_address, "ec2-user") do |ssh|
       puts "Uploading lchf-cassandra.yaml and lchf-install.sh to " + instance.dns_name
-      ssh.scp.upload! "lchf-cassandra.yaml", "lchf-cassandra.yaml"
+      ssh.scp.upload! "lchf-cassandra-single.yaml", "lchf-cassandra.yaml"
       ssh.scp.upload! "lchf-install.sh", "lchf-install.sh"
       ssh.scp.upload! "../api/zocial.py", "zocial.py"
-      puts "Executing lchf-install.sh on " + instance.dns_name
-      channel = ssh.open_channel do |channel|
-        channel.request_pty do |ch, success|
-          raise "Could not request pty" unless success
-          ch.exec "sh lchf-install.sh" do |c, success|
-            raise "Could not execute install script" unless success
-          end
-        end
-      end
-      channel.wait
-      ssh.loop
-      puts instance.id + "is ready"
     end
   rescue SystemCallError, Timeout::Error => e
     # port 22 might not be available immediately after the instance finishes launching
     sleep 1
     retry
   end
+  FileUtils.rm_f "lchf-cassandra-single.yaml"
+  start_cassandra_file << "ssh -x ec2-user@#{instance.dns_name} \"~/apache-cassandra-1.2.4/bin/cassandra >> lchf-cassandra-start-log\"\n"
 end
+puts "Files are copied"
 
+puts "Executing lchf-install.sh on all servers..."
+Net::SSH::Multi.start do |session|
+  instances.each { |instance| session.use 'ec2-user@' + instance.dns_name }
+  channel = session.open_channel do |channel|
+    channel.request_pty do |ch, success|
+      raise "Could not request pty for " + instance.id  unless success
+      ch.exec "sh lchf-install.sh" do |c, success|
+        raise "Could not execute install script for " + instance.id unless success
+      end
+    end
+  end
+  session.loop
+end
+puts "All servers have been installed with Cassandra and Flask"
+
+puts "Starting Cassandra and Flask..."
+Net::SSH::Multi.start do |session|
+  instances.each { |instance| session.use 'ec2-user@' + instance.dns_name }
+  session.exec "~/apache-cassandra-1.2.4/bin/cassandra"
+  session.exec "/usr/bin/python ~/api/zocial.py &"
+  session.loop
+end
+puts "Cassandra and Flask are running"
+
+start_cassandra_file.close
 puts "Cluster is set up, now run 'sh lchf-start-cassandra.sh' to start Cassandra"
 
 ################################################################################
