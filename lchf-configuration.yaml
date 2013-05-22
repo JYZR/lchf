@@ -1,0 +1,6 @@
+instances:
+- region: 'us-east1'
+  instance_type: 'm1.small'
+  count: 2
+# - region: 'eu-west-1'
+#   count: 2
