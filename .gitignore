@@ -5,3 +5,5 @@ lchf-cassandra.yaml
 lchf-cassandra.yaml
 
 lchf-cassandra-single.yaml
+
+lchf-start-cassandra.sh
