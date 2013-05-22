@@ -39,9 +39,6 @@ sudo chown -R ec2-user:ec2-user /var/log/cassandra/
 export PATH=$PATH:~/apache-cassandra-1.2.4/bin/
 echo "export PATH=$PATH:~/apache-cassandra-1.2.4/bin/" >> .bash_profile
 
-# Start cassandra
-# ~/apache-cassandra-1.2.4/bin/cassandra >> lchf-cassandra-start-log
-
 # Install Python with cql and flask
 sudo yum install -y python-pip
 sudo chown ec2-user /usr/lib/python2.6/site-packages/
@@ -50,4 +47,3 @@ pip install flask
 pip install cql
 mkdir -p ~/api
 cp ~/zocial.py ~/api/zocial.py
-python ~/api/zocial.py &
