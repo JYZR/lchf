@@ -82,6 +82,13 @@ instances_file << basic_instance_info.to_yaml
 instances_file.close
 puts "lchf-instances.yaml created"
 
+hosts_file = File.open("lchf-hosts", "w")
+instances.map do |instance| 
+  hosts_file << instance.private_ip_address + " ec2-" + instance.availability_zone[0..-2] + "\n"
+end
+hosts_file.close
+puts "lchf-hosts created"
+
 ################################################################################
 
 puts 'Copying files to all servers...'
