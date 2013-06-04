@@ -1,6 +1,0 @@
-- id: i-b5f276dd
-  private_ip_address: 10.151.33.103
-  public_ip_address: 54.224.125.205
-  dns_name: ec2-54-224-125-205.compute-1.amazonaws.com
-  image_id: ami-570f603e
-  instance_type: m1.small

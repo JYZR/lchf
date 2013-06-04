@@ -7,7 +7,7 @@ echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAACAQC4PAyVV7lS6su6Gr50ALenBclQqb4sw9wXBt
 # Alé's public key
 echo "ssh-rsa AAAAB3NzaC1yc2EAAAADAQABAAABAQDUGijxoaXkPmfKWsWuC6O0XmPmn06wlqYdnZ9oqCYRbTclLp7zfDlbKFw1YUw/8pd2sVaINK4Ws4xhfLRZm73yDcW1J7V2tVCHvqZOxLqCB1jjhODXvwHrsqIVk77vNJYQK1H+vu1dVnjkY6+GNTroqp9wGR3iY50I1xuPQslbM0HxI53/if3uvY3TtEJskIEs+6x3Uq9TMQcg/tA0XDEznb7Wqd6JlwVAE7SGjztdFfSldulE5537wQFb+5yzrMwBIZURHSAjZOu8cQgR5K5E7yQuXxGJLq0gijYtavrdOYMpv/fSF5WyEfzrrF8LMpLqynPlySIu5pmDZ4hiSMC/ aecc@AeccLaptop" >> ~/.ssh/authorized_keys
 
-sudo yum update
+sudo yum update -y
 
 # Cassandra can not run with OpenJDK, it results in segmentation fault
 # We better install Oracle JAVA
@@ -18,15 +18,17 @@ sudo rm /etc/alternatives/java
 sudo ln /usr/java/jdk1.7.0_21/bin/java /etc/alternatives/java --symbolic
 
 # Download Cassandra
-wget http://apache.rediris.es/cassandra/1.2.4/apache-cassandra-1.2.4-bin.tar.gz
+wget http://ftp.cixug.es/apache/cassandra/1.2.5/apache-cassandra-1.2.5-bin.tar.gz
 
-tar xvf apache-cassandra-1.2.4-bin.tar.gz
+tar xvf apache-cassandra-1.2.5-bin.tar.gz
 
 # Before starting Cassandra we need to have an updated configuration file
-# apache-cassandra-1.2.4/conf/cassandra.yaml
+# apache-cassandra-1.2.5/conf/cassandra.yaml
 # with the IP addresses of the nodes
 
-cp lchf-cassandra.yaml apache-cassandra-1.2.4/conf/cassandra.yaml
+cp lchf-cassandra.yaml apache-cassandra-1.2.5/conf/cassandra.yaml
+
+sudo mkdir /var/lib/cassandra
 
 sudo mkdir -p /var/lib/cassandra/data
 sudo mkdir -p /var/lib/cassandra/commitlog
@@ -36,8 +38,10 @@ sudo mkdir -p /var/log/cassandra
 sudo chown -R ec2-user:ec2-user /var/lib/cassandra/
 sudo chown -R ec2-user:ec2-user /var/log/cassandra/
 
-export PATH=$PATH:~/apache-cassandra-1.2.4/bin/
-echo "export PATH=$PATH:~/apache-cassandra-1.2.4/bin/" >> .bash_profile
+export PATH=$PATH:~/apache-cassandra-1.2.5/bin/
+export JAVA_HOME=/usr/java/default/
+echo "export PATH=$PATH:~/apache-cassandra-1.2.5/bin/" >> .bash_profile
+echo "export JAVA_HOME=/usr/java/default/" >> .bash_profile
 
 # Install Python with cql and flask
 sudo yum install -y python-pip
