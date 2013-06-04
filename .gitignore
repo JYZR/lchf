@@ -1,9 +1,4 @@
 lchf-cassandra.yaml
-lchf-instances.yaml
-lchf-cassandra.yaml
-
-lchf-cassandra.yaml
-
 lchf-cassandra-single.yaml
-
+lchf-instances.yaml
 lchf-start-cassandra.sh
